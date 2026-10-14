@@ -29,6 +29,7 @@ import com.djrapitops.plan.storage.database.queries.schema.MySQLSchemaQueries;
 import com.djrapitops.plan.storage.database.transactions.init.OperationCriticalTransaction;
 import com.djrapitops.plan.storage.file.PlanFiles;
 import com.djrapitops.plan.utilities.logging.ErrorContext;
+import com.djrapitops.plan.utilities.java.ThreadContextClassLoaderSwap;
 import com.djrapitops.plan.utilities.logging.ErrorLogger;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -113,24 +114,20 @@ public class MySQLDB extends SQLDB {
             downloadDriver();
         }
 
-        Thread currentThread = Thread.currentThread();
-        ClassLoader previousClassLoader = currentThread.getContextClassLoader();
-
-        // Set the context class loader to the driver class loader for Hikari to use for finding the Driver
-        currentThread.setContextClassLoader(driverClassLoader);
-
-        try {
-            loadDataSource();
-        } catch (MariaDB11Exception e) {
-            // Try to set up again using MariaDB driver
-            driverClassLoader = null;
-            dataSource = null;
-            useMariaDbDriver = true;
-            loadDataSource();
-        }
-
-        // Reset the context classloader back to what it was originally set to, now that the DataSource is created
-        currentThread.setContextClassLoader(previousClassLoader);
+        // Set the context class loader to the driver class loader for Hikari to use for finding the Driver. It is put back
+        // even when the DataSource cannot be created: the calling thread is the server thread, whose context class loader
+        // every other plugin or mod shares (ServiceLoader looks through it), and a failed start must not leave ours on it.
+        ThreadContextClassLoaderSwap.performOperation(driverClassLoader, () -> {
+            try {
+                loadDataSource();
+            } catch (MariaDB11Exception e) {
+                // Try to set up again using MariaDB driver
+                driverClassLoader = null;
+                dataSource = null;
+                useMariaDbDriver = true;
+                loadDataSource();
+            }
+        });
     }
 
     private void loadDataSource() {
