@@ -17,13 +17,11 @@
 package net.playeranalytics.plan.gathering.mixin;
 
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.level.GameType;
 import net.playeranalytics.plan.gathering.listeners.events.PlanFabricEvents;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @SuppressWarnings({"javabugs:S6320", "DataFlowIssue"}) // Illegal cast is required here.
@@ -34,13 +32,6 @@ public class ServerPlayerMixin {
     public void onGameModeChanged(GameType mode, CallbackInfoReturnable<Boolean> cir) {
 
         PlanFabricEvents.ON_GAMEMODE_CHANGE.invoker().onGameModeChange((ServerPlayer) (Object) this, mode);
-    }
-
-    @Inject(method = "die", at = @At(value = "TAIL"))
-    public void onKillSelf(DamageSource source, CallbackInfo ci) {
-        if (source.getEntity() == null) {
-            PlanFabricEvents.ON_KILLED.invoker().onKilled((ServerPlayer) (Object) this, null);
-        }
     }
 
 }

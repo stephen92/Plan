@@ -24,6 +24,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -65,15 +68,45 @@ public class ConfigWriter {
      */
     public void write(ConfigNode writing) throws IOException {
         if (outputPath == null) throw new IllegalStateException("Output path was null.");
+        if (writing instanceof Config config && outputPath != null && outputPath.equals(config.getConfigFilePath())) {
+            config.save();
+            return;
+        }
+        writeExpected(writing, Files.exists(outputPath) ? Files.readAllBytes(outputPath) : null);
+    }
+
+    byte[] writeExpected(ConfigNode writing, byte[] expected) throws IOException {
+        if (outputPath == null) throw new IllegalStateException("Output path was null.");
 
         ConfigNode storedParent = writing.parent;
         writing.updateParent(null); // Ensure that the node is written as the root node (Paths match)
 
-        Path dir = outputPath.getParent();
-        if (!Files.isSymbolicLink(dir)) Files.createDirectories(dir);
-        Files.write(outputPath, createLines(writing), StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
-
-        writing.updateParent(storedParent); // Restore state of the config node
+        Path temporary = null;
+        try {
+            Path dir = outputPath.toAbsolutePath().getParent();
+            if (!Files.isSymbolicLink(dir)) Files.createDirectories(dir);
+            byte[] bytes = (String.join(System.lineSeparator(), createLines(writing)) + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
+            try (ConfigReader validator = new ConfigReader(new java.io.ByteArrayInputStream(bytes))) {
+                validator.read();
+            } catch (IllegalStateException e) {
+                throw new IOException("Refusing to save invalid config to " + outputPath + ": " + e.getMessage(), e);
+            }
+            temporary = Files.createTempFile(dir, ".plan-config-", ".tmp");
+            Files.write(temporary, bytes, StandardOpenOption.TRUNCATE_EXISTING);
+            byte[] current = Files.exists(outputPath) ? Files.readAllBytes(outputPath) : null;
+            if (!Arrays.equals(expected, current)) {
+                throw new IOException("Config changed since it was loaded: " + outputPath + ". Reload before saving; the operator edit was preserved.");
+            }
+            try {
+                Files.move(temporary, outputPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temporary, outputPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return bytes;
+        } finally {
+            if (temporary != null) Files.deleteIfExists(temporary);
+            writing.updateParent(storedParent);
+        }
     }
 
     /**
@@ -88,6 +121,8 @@ public class ConfigWriter {
         List<String> lines = new ArrayList<>();
 
         dfsTreeTraverseLineResolve(writing, lines);
+        indent = 0;
+        addComment(writing.comment, lines);
 
         return lines;
     }
@@ -101,7 +136,7 @@ public class ConfigWriter {
                 // node is null:       Inconsistent config node state
                 // value is null:      Has no value (empty)
                 // nodeOrder is empty: Has no children
-                if (node == null || node.value == null && node.nodeOrder.isEmpty()) {
+                if (node == null) {
                     continue;
                 }
 
@@ -117,7 +152,7 @@ public class ConfigWriter {
     }
 
     private void addValue(ConfigNode node, Collection<String> lines) {
-        String key = node.key;
+        String key = node.serializedKey == null ? node.key : node.serializedKey;
         String value = node.value;
 
         if (value == null || value.isEmpty()) {

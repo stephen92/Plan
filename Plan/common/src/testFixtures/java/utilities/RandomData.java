@@ -278,6 +278,6 @@ public class RandomData {
     }
 
     public static List<UUID> randomUUIDs(int n) {
-        return IntStream.range(0, n).mapToObj(_ -> UUID.randomUUID()).toList();
+        return IntStream.range(0, n).mapToObj(index -> UUID.randomUUID()).toList();
     }
 }

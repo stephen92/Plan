@@ -95,7 +95,12 @@ class ConfigUpdaterTest {
         // Ensure that added settings are present
         copyMissingFrom(config, newConfig);
 
-        TestSettings.assertValidDefaultValuesForAllSettings(config, TestSettings.getServerSettings());
+        // The historical fixture deliberately contains an explicit null AFK threshold.
+        // Missing-default persistence must preserve that operator value.
+        org.junit.jupiter.api.Assertions.assertNull(config.getLong("Time.Thresholds.AFK_threshold.Time"));
+        var settings = TestSettings.getServerSettings();
+        settings.remove(com.djrapitops.plan.settings.config.paths.TimeSettings.AFK_THRESHOLD);
+        TestSettings.assertValidDefaultValuesForAllSettings(config, settings);
     }
 
     @Test

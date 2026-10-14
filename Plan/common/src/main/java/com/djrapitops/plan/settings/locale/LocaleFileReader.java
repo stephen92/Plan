@@ -46,7 +46,7 @@ public class LocaleFileReader {
 
             config.getConfigPaths().forEach(key -> {
                 Lang msg = keys.get(key);
-                if (msg != null) {
+                if (msg != null && config.getString(key) != null) {
                     locale.put(msg, new Message(config.getString(key)));
                 }
             });

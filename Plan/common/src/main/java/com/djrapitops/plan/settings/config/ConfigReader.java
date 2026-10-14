@@ -102,11 +102,12 @@ public class ConfigReader implements Closeable {
             handleLine(line, trimmed);
         }
 
+        config.setComment(new ArrayList<>(unboundComment));
         return config;
     }
 
     private void handleLine(String line, String trimmed) {
-        if (trimmed.isEmpty() || trimmed.startsWith(":")) {
+        if (trimmed.isEmpty()) {
             // Add an empty row comment in case user wants spacers
             handleCommentLine(" ");
         } else if (trimmed.startsWith("#")) {
@@ -117,6 +118,13 @@ public class ConfigReader implements Closeable {
             int currentDepth = findCurrentDepth(line);
             parent = findParent(lastDepth, currentDepth);
             if (parent == null) throw new IllegalStateException("Could not determine parent on line: \"" + line + "\"");
+            // Historical Plan configs stored DatePattern beneath a boolean setting.
+            String parentPath = parent.getKey(true);
+            boolean legacyDateSetting = "Customization.Formatting.Dates.RecentDays".equals(parentPath)
+                    || "Formatting.Dates.Show_recent_day_names".equals(parentPath);
+            if (!trimmed.startsWith("- ") && parent.value != null && !legacyDateSetting) {
+                throw new IllegalStateException("A scalar config value cannot contain child settings: " + line + ". Fix its indentation before reloading.");
+            }
 
             // Get the node the line belongs to
             previousNode = parseNode(trimmed);
@@ -130,33 +138,77 @@ public class ConfigReader implements Closeable {
     private String readNewLine() {
         String line = scanner.nextLine();
         lineDanglingComment = null;
-
-        // Removing any dangling comments
-        int danglingComment = line.trim().indexOf(" #");
-        if (danglingComment != -1) {
-            lineDanglingComment = line.trim().substring(danglingComment + 1);
-            line = line.substring(0, line.indexOf(" #"));
+        if (line.stripLeading().startsWith("#")) return line;
+        int scalarStart = line.stripLeading().startsWith("- ") ? line.indexOf('-') + 2 : findKeySeparator(line) + 1;
+        while (scalarStart < line.length() && Character.isWhitespace(line.charAt(scalarStart))) scalarStart++;
+        int commentStart = scalarStart;
+        if (scalarStart < line.length() && (line.charAt(scalarStart) == '\'' || line.charAt(scalarStart) == '"')) {
+            commentStart = findClosingQuote(line, scalarStart) + 1;
+        }
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '\t' && line.substring(0, i).isBlank()) {
+                throw new IllegalStateException("Tabs are not supported for config indentation: " + line);
+            }
+            if (i >= commentStart && c == '#' && (i == 0 || Character.isWhitespace(line.charAt(i - 1)))) {
+                lineDanglingComment = line.substring(i);
+                line = line.substring(0, i);
+                break;
+            }
         }
         return line;
     }
 
+    private int findClosingQuote(String line, int start) {
+        char quote = line.charAt(start);
+        for (int i = start + 1; i < line.length(); i++) {
+            if (line.charAt(i) != quote) continue;
+            if (quote == '"') {
+                int escapes = 0;
+                for (int j = i - 1; j > start && line.charAt(j) == '\\'; j--) escapes++;
+                if (escapes % 2 != 0) continue;
+            } else if (i + 1 < line.length() && line.charAt(i + 1) == quote) {
+                i++;
+                continue;
+            }
+            String remaining = line.substring(i + 1).stripLeading();
+            if (remaining.isEmpty() || remaining.startsWith("#")) return i;
+        }
+        throw new IllegalStateException("Unclosed quote in config line: " + line + ". Close the quote before reloading.");
+    }
+
     private ConfigNode parseNode(String line) {
         // Parse a node "Key: value"
-        // Can not use StringUtils.split(line, ":", 2) - Relies on 2nd empty String for parent node parsing
-        String[] keyAndValue = line.split(":", 2);
-        if (keyAndValue.length <= 1 || line.startsWith("- ")) {
+        int separator = findKeySeparator(line);
+        if (separator < 0 || line.startsWith("- ")) {
             return handleMultiline(line);
         }
-        String key = keyAndValue[0].trim();
-        String value = keyAndValue[1].trim();
-        return handleNewNode(key, !value.isEmpty() ? value : null);
+        String serializedKey = line.substring(0, separator).trim();
+        String key = new ConfigValueParser.StringParser().compose(serializedKey);
+        String value = line.substring(separator + 1).trim();
+        ConfigNode node = handleNewNode(key, !value.isEmpty() ? value : null);
+        node.serializedKey = serializedKey;
+        return node;
+    }
+
+    private int findKeySeparator(String line) {
+        char quote = 0;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if ((c == '\'' || c == '"') && (i == 0 || line.substring(0, i).isBlank() || quote == c)) {
+                quote = quote == 0 ? c : 0;
+            }
+            // Colons in identifiers such as minecraft:overworld are part of the key.
+            if (quote == 0 && c == ':' && (i + 1 == line.length() || Character.isWhitespace(line.charAt(i + 1)))) return i;
+        }
+        return -1;
     }
 
     private ConfigNode handleMultiline(String line) {
         if (line.startsWith("- ")) {
             return handleListCase(line);
         } else {
-            return handleMultilineString(line);
+            throw new IllegalStateException("Expected 'Key: value' or '- list item' in config line: " + line + ". Put messages on one quoted line.");
         }
     }
 
@@ -179,18 +231,12 @@ public class ConfigReader implements Closeable {
         }
     }
 
-    private ConfigNode handleMultilineString(String line) {
-        // Ensure we are not appending to null value
-        if (previousNode.value == null) {
-            previousNode.value = "";
-        }
-        // Append the new line to the end of the value.
-        previousNode.value += line.trim();
-        return previousNode;
-    }
-
     private ConfigNode handleNewNode(String key, String value) {
+        if (key.isEmpty() || parent.childNodes.containsKey(key)) {
+            throw new IllegalStateException("Empty or duplicate config key: " + key);
+        }
         ConfigNode newNode = new ConfigNode(key, parent, value);
+        newNode.explicitNull = value == null;
         return parent.addChild(newNode);
     }
 
@@ -237,7 +283,11 @@ public class ConfigReader implements Closeable {
         if (indent % indentMode == 0) {
             depth = indent / indentMode;
         } else {
-            depth = ((indent - (indent % indentMode)) / indentMode) + 1; // Round up
+            if (line.stripLeading().startsWith("- ") && indent % indentMode == 2) {
+                depth = indent / indentMode + 1;
+            } else {
+                throw new IllegalStateException("Invalid config indentation: " + line + ". Use consistent two- or four-space indentation.");
+            }
         }
         return depth;
     }

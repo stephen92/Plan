@@ -1,6 +1,7 @@
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+import net.fabricmc.loom.task.RemapJarTask
 
-apply plugin: "net.fabricmc.fabric-loom"
+apply plugin: "net.fabricmc.fabric-loom-remap"
 apply plugin: "com.gradleup.shadow"
 
 configurations {
@@ -16,9 +17,10 @@ dependencies {
 
     implementation "net.playeranalytics:platform-abstraction-layer-api:$palVersion"
 
-    minecraft "com.mojang:minecraft:26.3"
-    implementation "net.fabricmc:fabric-loader:0.19.5"
-    implementation("me.lucko:fabric-permissions-api:0.7.0")
+    minecraft "com.mojang:minecraft:1.21.1"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:0.16.10"
+    modImplementation("me.lucko:fabric-permissions-api:0.3.1")
 
     // Fabric API
     Set<String> apiModules = [
@@ -31,15 +33,15 @@ dependencies {
     ]
 
     apiModules.forEach {
-        implementation(fabricApi.module(it, "0.161.0+26.3"))
+        modImplementation(fabricApi.module(it, "0.116.7+1.21.1"))
     }
 
     testImplementation(testFixtures(project(":common")))
     testImplementation(project(":extensions:adventure"))
 }
 
-compileJava {
-    options.release = 25
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
 }
 
 processResources {
@@ -115,9 +117,19 @@ tasks.named("shadowJar", ShadowJar) {
     relocate "javax.servlet", "plan.javax.servlet"
 
     mergeServiceFiles()
+    filesMatching("META-INF/services/**") {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
 
+    destinationDirectory.set(layout.buildDirectory.dir("devlibs"))
+    archiveClassifier.set("dev-shadow")
+}
+
+tasks.named("remapJar", RemapJarTask) {
+    dependsOn tasks.shadowJar
+    inputFile.set(tasks.shadowJar.archiveFile)
     destinationDirectory.set(file("$rootDir/builds/"))
     archiveFileName.set("PlanFabric-${project.version}.jar")
 }
 
-tasks.assemble.dependsOn tasks.shadowJar
+tasks.assemble.dependsOn tasks.remapJar

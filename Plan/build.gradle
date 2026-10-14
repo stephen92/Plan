@@ -11,7 +11,7 @@ plugins {
     id("base")
     id "org.sonarqube" version "7.5.0.8588"
     id "com.gradleup.shadow" version "9.6.1" apply false
-    id "net.fabricmc.fabric-loom" version "1.18.2" apply false
+    id "net.fabricmc.fabric-loom-remap" version "1.18.2" apply false
 }
 
 apply plugin: "nebula-aggregate-javadocs"
@@ -24,12 +24,12 @@ allprojects {
     ext {
         majorVersion = "5"
         minorVersion = "9"
-        buildVersion = providers.provider {
+        buildVersion = providers.gradleProperty("planBuild").map { it.toInteger() }.orElse(providers.provider {
             def command = "git rev-list --count HEAD"
             def buildInfo = command.execute().text.trim()
             // Magic number: git rev-list --count cdb13e3b663b18e3938ad5efc60d165fa9301f6e
             return Integer.parseInt(buildInfo.toString().replaceAll("[^0-9]", "")) - 3529
-        }.get()
+        }).get()
 
         fullVersion = majorVersion + "." + minorVersion + " build " + buildVersion
         fullVersionFilename = majorVersion + "." + minorVersion + "-build-" + buildVersion

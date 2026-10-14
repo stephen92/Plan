@@ -24,7 +24,7 @@ import com.djrapitops.plan.storage.database.DBSystem;
 import com.djrapitops.plan.storage.database.transactions.events.StoreWorldNameTransaction;
 import com.djrapitops.plan.utilities.logging.ErrorContext;
 import com.djrapitops.plan.utilities.logging.ErrorLogger;
-import net.fabricmc.fabric.api.entity.event.v1.ServerEntityLevelChangeEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents;
 import net.minecraft.server.level.ServerPlayer;
 import net.playeranalytics.plan.gathering.listeners.FabricListener;
 
@@ -70,7 +70,7 @@ public class WorldChangeListener implements FabricListener {
 
         UUID uuid = player.getUUID();
 
-        String worldName = player.level().dimension().identifier().toString();
+        String worldName = player.level().dimension().location().toString();
         String gameMode = player.gameMode.getGameModeForPlayer().name();
 
         dbSystem.getDatabase().executeTransaction(new StoreWorldNameTransaction(serverInfo.getServerUUID(), worldName));
@@ -86,7 +86,7 @@ public class WorldChangeListener implements FabricListener {
             return;
         }
 
-        ServerEntityLevelChangeEvents.AFTER_PLAYER_CHANGE_LEVEL.register((player, _, _) -> {
+        ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register((player, origin, destination) -> {
             if (!this.isEnabled) {
                 return;
             }

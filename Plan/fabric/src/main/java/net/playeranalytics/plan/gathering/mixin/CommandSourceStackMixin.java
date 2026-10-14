@@ -59,7 +59,7 @@ public abstract class CommandSourceStackMixin implements CMDSender {
 
     @Override
     public Optional<String> getPlayerName() {
-        return getPlayer().map(ServerPlayer::getGameProfile).map(GameProfile::name);
+        return getPlayer().map(ServerPlayer::getGameProfile).map(GameProfile::getName);
     }
 
     @Override

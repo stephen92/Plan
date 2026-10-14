@@ -33,7 +33,6 @@ import com.mojang.authlib.GameProfile;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.network.protocol.handshake.ClientIntent;
 import net.minecraft.network.protocol.handshake.ClientIntentionPacket;
-import net.minecraft.server.players.NameAndId;
 import net.minecraft.server.dedicated.DedicatedServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.playeranalytics.plan.gathering.FabricPlayerPositionTracker;
@@ -141,9 +140,9 @@ public class PlayerOnlineListener implements FabricListener {
         }
     }
 
-    public void onPlayerLogin(SocketAddress address, NameAndId profile, boolean banned) {
+    public void onPlayerLogin(SocketAddress address, GameProfile profile, boolean banned) {
         try {
-            UUID playerUUID = profile.id();
+            UUID playerUUID = profile.getId();
             ServerUUID serverUUID = serverInfo.getServerUUID();
 
             String playerJoinAddress = joinAddress.get();

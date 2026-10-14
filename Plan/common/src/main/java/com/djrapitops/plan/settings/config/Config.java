@@ -25,9 +25,12 @@ package com.djrapitops.plan.settings.config;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.List;
+import java.util.logging.Logger;
 
 /**
  * Configuration utility for storing settings in a .yml file.
@@ -37,6 +40,8 @@ import java.util.Objects;
 public class Config extends ConfigNode {
 
     private final Path configFilePath;
+    private byte[] loadedBytes;
+    private List<String> savedLines;
 
     public Config(File configFile) {
         super("", null, null);
@@ -47,9 +52,8 @@ public class Config extends ConfigNode {
             if (!Files.isSymbolicLink(dir)) Files.createDirectories(dir);
             if (!Files.exists(configFilePath)) Files.createFile(configFilePath);
             read();
-            save();
         } catch (IOException e) {
-            throw new IllegalStateException(e.getMessage(), e);
+            throw new IllegalStateException("Could not read config " + configFilePath + ": " + e.getMessage(), e);
         }
     }
 
@@ -59,7 +63,7 @@ public class Config extends ConfigNode {
         try {
             save();
         } catch (IOException e) {
-            throw new IllegalStateException(e.getMessage(), e);
+            Logger.getLogger(Config.class.getName()).warning("Could not persist missing defaults to " + configFilePath + ": " + e.getMessage() + ". Decoded settings remain in use.");
         }
     }
 
@@ -72,15 +76,53 @@ public class Config extends ConfigNode {
         return Files.exists(configFilePath);
     }
 
-    public void read() throws IOException {
-        try (ConfigReader reader = new ConfigReader(Files.newInputStream(configFilePath))) {
-            copyAll(reader.read());
+    public synchronized void read() throws IOException {
+        byte[] bytes = Files.readAllBytes(configFilePath);
+        try (ConfigReader reader = new ConfigReader(new ByteArrayInputStream(bytes))) {
+            Config parsed = reader.read();
+            childNodes.clear();
+            nodeOrder.clear();
+            copyAll(parsed);
+            loadedBytes = bytes;
+            savedLines = new ConfigWriter().createLines(this);
         }
     }
 
     @Override
-    public void save() throws IOException {
-        new ConfigWriter(configFilePath).write(this);
+    public synchronized void save() throws IOException {
+        List<String> lines = new ConfigWriter().createLines(this);
+        if (lines.equals(savedLines)) return;
+        loadedBytes = new ConfigWriter(configFilePath).writeExpected(this, loadedBytes);
+        savedLines = lines;
+    }
+
+    /** Add schema fields, never replace an existing value (including explicit null). */
+    @Override
+    public synchronized void copyMissing(ConfigNode defaults) {
+        mergeDefaults(this, defaults, "");
+    }
+
+    private void mergeDefaults(ConfigNode target, ConfigNode defaults, String prefix) {
+        for (String key : defaults.nodeOrder) {
+            String path = prefix.isEmpty() ? key : prefix + "." + key;
+            if (this instanceof PlanConfig && ("World_aliases.List".equals(path) || "Plugins".equals(path))) {
+                // Keep the fixed container available without restoring named example records.
+                if (!target.childNodes.containsKey(key)) target.addNode(key);
+                continue;
+            }
+            ConfigNode source = defaults.childNodes.get(key);
+            ConfigNode existing = target.childNodes.get(key);
+            if (existing == null) {
+                ConfigNode added = target.addNode(key);
+                added.setComment(new java.util.ArrayList<>(source.comment));
+                added.serializedKey = source.serializedKey;
+                // Lists contain operator-selected entries, not fixed schema fields.
+                added.value = source.value != null && source.value.startsWith("\n- ") ? "" : source.value;
+                mergeDefaults(added, source, path);
+            } else if (existing.value == null && (!existing.explicitNull || !existing.isLeafNode())) {
+                mergeDefaults(existing, source, path);
+            }
+        }
     }
 
     @Override

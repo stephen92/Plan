@@ -23,8 +23,11 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.file.attribute.FileTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Test class for {@link LocaleFileWriter}.
@@ -32,6 +35,27 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * @author AuroraLS3
  */
 class LocaleFileWriterTest {
+
+    @Test
+    void preservesOperatorNullUnknownKeysAndCommentsOnRepeatedUpdates(@TempDir Path tempDir) throws IOException {
+        Path file = tempDir.resolve("locale.yml");
+        String key = LocaleSystem.getKeys().keySet().iterator().next();
+        StringBuilder operatorFile = new StringBuilder("# operator locale\n");
+        String[] parts = key.split("\\.");
+        for (int i = 0; i < parts.length; i++) {
+            operatorFile.append("  ".repeat(i)).append(parts[i]).append(":\n");
+        }
+        Files.writeString(file, operatorFile + "unknown_key: custom\n");
+        new LocaleFileWriter(new Locale()).writeToFile(file.toFile());
+        var config = new com.djrapitops.plan.settings.config.Config(file.toFile());
+        assertEquals(null, config.getString(key));
+        assertEquals("custom", config.getString("unknown_key"));
+        assertTrue(Files.readString(file).contains("operator locale"));
+        FileTime time = FileTime.fromMillis(1000);
+        Files.setLastModifiedTime(file, time);
+        new LocaleFileWriter(new Locale()).writeToFile(file.toFile());
+        assertEquals(time, Files.getLastModifiedTime(file));
+    }
 
     @Test
     void writesAllKeys(@TempDir Path tempDir) throws IOException {

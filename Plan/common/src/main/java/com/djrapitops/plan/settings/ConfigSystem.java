@@ -73,17 +73,21 @@ public abstract class ConfigSystem implements SubSystem {
     public void enable() {
         try {
             copyDefaults();
+        } catch (IOException e) {
+            throw new EnableException("Failed to read packaged config defaults: " + e.getMessage(), e);
+        }
+        try {
             config.reorder(Arrays.asList(
                     "Server", "Network", "Plugin", "Database", "Webserver",
                     "Data_gathering", "Time", "Display_options", "Formatting", "World_aliases", "Export", "Plugins"
             ));
             config.save();
 
-            checkWrongTimeZone();
         } catch (IOException e) {
             errorLogger.error(e, ErrorContext.builder().whatToDo("Fix write permissions to " + config.getConfigFilePath()).build());
-            throw new EnableException("Failed to save default config: " + e.getMessage(), e);
+            logger.warn("Could not persist missing config defaults. Decoded operator settings remain in use.");
         }
+        checkWrongTimeZone();
         theme.enable();
     }
 
@@ -110,6 +114,8 @@ public abstract class ConfigSystem implements SubSystem {
     public void reload() {
         try {
             config.read();
+            copyDefaults();
+            config.save();
         } catch (IOException e) {
             errorLogger.error(e, ErrorContext.builder().whatToDo("Fix read permissions to " + config.getConfigFilePath()).build());
         }

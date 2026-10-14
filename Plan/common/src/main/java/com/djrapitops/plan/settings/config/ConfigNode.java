@@ -48,6 +48,8 @@ public class ConfigNode {
     protected List<String> comment;
 
     protected String value;
+    protected boolean explicitNull;
+    protected String serializedKey;
 
     public ConfigNode(String key, ConfigNode parent, String value) {
         this.key = key;
@@ -244,6 +246,7 @@ public class ConfigNode {
     }
 
     public <T> void set(T value) {
+        explicitNull = value == null;
         if (value == null) {
             this.value = null;
         } else if (value instanceof ConfigNode) {
@@ -408,6 +411,8 @@ public class ConfigNode {
             // Override comment and value unconditionally.
             comment = from.comment;
             value = from.value;
+            explicitNull = from.explicitNull;
+            serializedKey = Objects.equals(key, from.key) ? from.serializedKey : null;
 
             // Copy all nodes from 'from'
             for (String childKey : from.nodeOrder) {
@@ -425,6 +430,7 @@ public class ConfigNode {
     public void copyValue(ConfigNode from) {
         comment = from.comment;
         value = from.value;
+        explicitNull = from.explicitNull;
     }
 
     protected int getNodeDepth() {

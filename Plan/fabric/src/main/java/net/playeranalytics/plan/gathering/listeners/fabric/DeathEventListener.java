@@ -26,19 +26,19 @@ import com.djrapitops.plan.processing.processors.player.MobKillProcessor;
 import com.djrapitops.plan.processing.processors.player.PlayerKillProcessor;
 import com.djrapitops.plan.utilities.logging.ErrorContext;
 import com.djrapitops.plan.utilities.logging.ErrorLogger;
-import net.fabricmc.fabric.api.entity.event.v1.ServerEntityCombatEvents;
+import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.TamableAnimal;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerPlayer;
 import net.playeranalytics.plan.gathering.listeners.FabricListener;
 import net.playeranalytics.plan.gathering.listeners.events.PlanFabricEvents;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import java.util.Objects;
 import java.util.Optional;
 
 @Singleton
@@ -68,12 +68,14 @@ public class DeathEventListener implements FabricListener {
             return;
         }
 
-        ServerEntityCombatEvents.AFTER_KILLED_OTHER_ENTITY.register((world, killer, killedEntity, damageSource) ->
+        ServerLivingEntityEvents.AFTER_DEATH.register((killedEntity, source) ->
                 {
                     if (!this.isEnabled) {
                         return;
                     }
-                    Entity directCause = Objects.requireNonNullElse(damageSource.getDirectEntity(), killer);
+                    // In 1.21.1 lastDamageSource is assigned after die() returns.
+                    // Use the fatal source passed by the event, including indirect killers.
+                    Entity directCause = source.getDirectEntity() == null ? source.getEntity() : source.getDirectEntity();
                     PlanFabricEvents.ON_KILLED.invoker().onKilled(killedEntity, directCause);
                 }
         );
@@ -140,7 +142,7 @@ public class DeathEventListener implements FabricListener {
 
     private String getItemInHand(ServerPlayer killer) {
         ItemStack itemInHand = killer.getMainHandItem();
-        return itemInHand.getItemName().getString();
+        return itemInHand.getOrDefault(DataComponents.ITEM_NAME, itemInHand.getItem().getDescription()).getString();
     }
 
     private Optional<ServerPlayer> getShooter(Projectile projectile) {

@@ -49,7 +49,6 @@ public class ConfigUpdater {
     public void applyConfigUpdate(Config config) throws IOException {
         ConfigChange[] configEnhancementsPatch = configEnhancementPatch();
         applyChanges(config, configEnhancementsPatch);
-        config.save();
     }
 
     // VisibleForTesting

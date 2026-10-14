@@ -25,7 +25,6 @@ import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Component;
 import org.apache.commons.text.TextStringBuilder;
 
-import java.net.URI;
 import java.util.Collection;
 
 public class FabricMessageBuilder implements MessageBuilder {
@@ -59,31 +58,31 @@ public class FabricMessageBuilder implements MessageBuilder {
 
     @Override
     public MessageBuilder link(String url) {
-        builder.withStyle(style -> style.withClickEvent(new ClickEvent.OpenUrl(URI.create(url))));
+        builder.withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url)));
         return this;
     }
 
     @Override
     public MessageBuilder command(String command) {
-        builder.withStyle(style -> style.withClickEvent(new ClickEvent.RunCommand(command.charAt(0) == '/' ? command : '/' + command)));
+        builder.withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command.charAt(0) == '/' ? command : '/' + command)));
         return this;
     }
 
     @Override
     public MessageBuilder hover(String message) {
-        builder.withStyle(style -> style.withHoverEvent(new HoverEvent.ShowText(Component.literal(message))));
+        builder.withStyle(style -> style.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(message))));
         return this;
     }
 
     @Override
     public MessageBuilder hover(String... lines) {
-        builder.withStyle(style -> style.withHoverEvent(new HoverEvent.ShowText(Component.literal(new TextStringBuilder().appendWithSeparators(lines, "\n").toString()))));
+        builder.withStyle(style -> style.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(new TextStringBuilder().appendWithSeparators(lines, "\n").toString()))));
         return this;
     }
 
     @Override
     public MessageBuilder hover(Collection<String> lines) {
-        builder.withStyle(style -> style.withHoverEvent(new HoverEvent.ShowText(Component.literal(new TextStringBuilder().appendWithSeparators(lines, "\n").toString()))));
+        builder.withStyle(style -> style.withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal(new TextStringBuilder().appendWithSeparators(lines, "\n").toString()))));
         return this;
     }
 

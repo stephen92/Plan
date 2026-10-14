@@ -177,6 +177,7 @@ public class LocaleSystem implements SubSystem {
     private void reloadCustomLocale() {
         File localeFile = files.getLocaleFile();
         if (localeFile.exists()) {
+            writeNewDefaultLocale(localeFile);
             loadFromFile(localeFile).ifPresent(locale::loadFromAnotherLocale);
             logger.info(locale.getString(PluginLang.RELOAD_LOCALE));
         }

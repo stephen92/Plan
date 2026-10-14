@@ -766,9 +766,8 @@ div#navSrvContainer {
 }
 
 div#navSrvContainer > a {
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 div#navSrvContainer::-webkit-scrollbar {
@@ -1329,9 +1328,17 @@ body.sidebar-hidden .navbar-nav {
     }
 }
 
-.collapse-item.nav-button {
-    overflow: hidden;
-    text-overflow: ellipsis;
+.sidebar .nav-item .collapse .collapse-inner .collapse-item.nav-button {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    height: auto;
+}
+
+button, .btn, .nav-button {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    min-height: min-content;
 }
 
 button, input[type="submit"], input[type="reset"] {

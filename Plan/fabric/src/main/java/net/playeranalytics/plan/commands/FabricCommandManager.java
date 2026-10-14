@@ -34,8 +34,6 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
-import net.minecraft.server.permissions.PermissionLevel;
-import net.minecraft.server.permissions.Permissions;
 import net.playeranalytics.plan.PlanFabric;
 import net.playeranalytics.plugin.scheduling.RunnableFactory;
 
@@ -57,8 +55,8 @@ public class FabricCommandManager {
 
     public static boolean checkPermission(CommandSourceStack src, String permission) {
         if (isPermissionsApiAvailable()) {
-            return me.lucko.fabric.api.permissions.v0.Permissions.check(src, permission, PermissionLevel.GAMEMASTERS);
-        } else if (src.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER)) {
+            return me.lucko.fabric.api.permissions.v0.Permissions.check(src, permission, 2);
+        } else if (src.hasPermission(2)) {
             return true;
         } else {
             return switch (permission) {

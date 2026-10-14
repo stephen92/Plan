@@ -37,7 +37,7 @@ public class FabricServerProperties extends ServerProperties {
                         FabricLoader.getInstance().getModContainer("fabricloader").map(modContainer -> modContainer.getMetadata().getVersion().getFriendlyString()).orElse("Unknown") +
                         " (loader)",
                 () -> (server.getLocalIp() == null) ? "" : server.getLocalIp(),
-                server.getProperties().maxPlayers.get()
+                server.getProperties().maxPlayers
         );
     }
 }

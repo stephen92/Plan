@@ -17,7 +17,6 @@
 package com.djrapitops.plan.settings.locale;
 
 import com.djrapitops.plan.settings.config.Config;
-import com.djrapitops.plan.settings.config.ConfigWriter;
 import com.djrapitops.plan.settings.locale.lang.Lang;
 
 import java.io.File;
@@ -40,10 +39,11 @@ public class LocaleFileWriter {
         addMissingLang();
 
         Config writing = new Config(file);
-        locale.forEach((lang, message) -> writing.set(lang.getKey(), message.toString()));
-        writing.dfs((node, result) -> node.sort());
+        locale.forEach((lang, message) -> {
+            if (!writing.contains(lang.getKey())) writing.set(lang.getKey(), message.toString());
+        });
 
-        new ConfigWriter(file.toPath()).write(writing);
+        writing.save();
     }
 
     private void addMissingLang() {

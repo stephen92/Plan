@@ -48,9 +48,23 @@ public interface ConfigChange {
         @Override
         public synchronized void apply(Config config) {
             if (config.getNode(newPath).isPresent()) {
+                ConfigNode target = config.getNode(newPath).orElseThrow();
+                config.getNode(oldPath).ifPresent(source -> mergeMissingFields(target, source));
                 super.apply(config);
             } else if (!config.moveChild(oldPath, newPath)) {
                 throw new IllegalStateException("Failed to move config node from '" + oldPath + "' to '" + newPath + "'");
+            }
+        }
+
+        private void mergeMissingFields(ConfigNode target, ConfigNode source) {
+            for (ConfigNode child : source.getChildren()) {
+                String key = child.getKey(false);
+                Optional<ConfigNode> existing = target.getNode(key);
+                if (existing.isEmpty()) {
+                    target.addNode(key).copyAll(child);
+                } else if (!existing.get().isLeafNode() && !child.isLeafNode()) {
+                    mergeMissingFields(existing.get(), child);
+                }
             }
         }
 
